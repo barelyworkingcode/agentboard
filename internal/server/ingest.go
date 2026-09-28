@@ -244,8 +244,8 @@ func (h *Handler) item(w http.ResponseWriter, r *http.Request) {
 	case !itemRepoRe.MatchString(p.Repo):
 		writeErr(w, http.StatusBadRequest, "repo must be owner/name or name")
 		return
-	case p.Number < 1:
-		writeErr(w, http.StatusBadRequest, "number must be at least 1")
+	case p.Number < 0, p.Number == 0 && (p.PR == nil || *p.PR < 1):
+		writeErr(w, http.StatusBadRequest, "number must be at least 1, or 0 with pr")
 		return
 	case p.PR != nil && *p.PR < 1:
 		writeErr(w, http.StatusBadRequest, "pr must be at least 1")

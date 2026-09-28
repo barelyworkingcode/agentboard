@@ -255,20 +255,28 @@ func (s *Store) UpsertItem(ctx context.Context, c wire.Ctx, p wire.ItemPost, at 
 		owner, _, _ := strings.Cut(c.Repo, "/")
 		repo = owner + "/" + repo
 	}
-	key := fmt.Sprintf("%s#%d", repo, p.Number)
+	number := p.Number
+	var key string
 	err := s.write(ctx, func(tx *sql.Tx) error {
 		if err := touch(ctx, tx, c, at); err != nil {
 			return err
 		}
+		if number == 0 && p.PR != nil && *p.PR > 0 {
+			var err error
+			if number, err = itemByPR(ctx, tx, repo, *p.PR); err != nil {
+				return err
+			}
+		}
+		key = fmt.Sprintf("%s#%d", repo, number)
 		_, err := tx.ExecContext(ctx, `INSERT INTO items
   (repo, number, title, pr, state, tier, run, updated_at, machine, project, session_id, name)
   VALUES (?1, ?2, COALESCE(?3, ''), COALESCE(?4, 0), COALESCE(?5, ''), COALESCE(?6, ''), ?7, ?8, ?9, ?10, ?11, ?12)
   ON CONFLICT(repo, number) DO UPDATE SET
-  title = COALESCE(?3, items.title), pr = COALESCE(?4, items.pr),
+  title = COALESCE(NULLIF(?3, ''), items.title), pr = COALESCE(?4, items.pr),
   state = COALESCE(?5, items.state), tier = COALESCE(?6, items.tier),
   run = CASE WHEN ?7 <> '' THEN ?7 ELSE items.run END,
   updated_at = ?8, machine = ?9, project = ?10, session_id = ?11, name = ?12`,
-			repo, p.Number, nullString(p.Title), nullInt(p.PR), nullString(p.State), nullString(p.Tier),
+			repo, number, nullString(p.Title), nullInt(p.PR), nullString(p.State), nullString(p.Tier),
 			c.Run, at, c.Machine, c.Project, c.Session, c.Name)
 		if err != nil {
 			return fmt.Errorf("upsert item %s: %w", key, err)
@@ -279,6 +287,21 @@ func (s *Store) UpsertItem(ctx context.Context, c wire.Ctx, p wire.ItemPost, at 
 		return "", err
 	}
 	return key, nil
+}
+
+// itemByPR returns the number of the most recently updated item in repo whose
+// pr is pr, or pr itself when there is none.
+func itemByPR(ctx context.Context, tx *sql.Tx, repo string, pr int) (int, error) {
+	var number int
+	err := tx.QueryRowContext(ctx, `SELECT number FROM items WHERE repo = ? AND pr = ?
+  ORDER BY updated_at DESC, number DESC LIMIT 1`, repo, pr).Scan(&number)
+	if errors.Is(err, sql.ErrNoRows) {
+		return pr, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("find item for %s pr %d: %w", repo, pr, err)
+	}
+	return number, nil
 }
 
 func (s *Store) StartRun(ctx context.Context, c wire.Ctx, name string, at int64) (wire.Run, error) {
