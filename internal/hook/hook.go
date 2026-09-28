@@ -1,5 +1,5 @@
 // Package hook adapts a Claude Code hook invocation (JSON on stdin) into a
-// POST to /api/hook.
+// POST to /api/hook, plus POSTs to /api/items for gh commands a Bash tool ran.
 package hook
 
 import (
@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"github.com/barelyworkingcode/agentboard/internal/client"
+	"github.com/barelyworkingcode/agentboard/internal/ghparse"
 	"github.com/barelyworkingcode/agentboard/internal/wire"
 )
 
@@ -24,8 +25,9 @@ var posted = map[string]bool{
 	"SessionEnd":         true,
 }
 
-// input holds only the stdin fields the hook uses. Prompts, tool input and
-// output, messages and transcript paths are never decoded.
+// input holds the stdin fields posted to /api/hook. Prompts, messages and
+// transcript paths are never decoded; the Bash command and stdout are decoded
+// only by bashFields, for ghparse, and never posted.
 type input struct {
 	SessionID        string `json:"session_id"`
 	Cwd              string `json:"cwd"`
@@ -55,6 +57,31 @@ func Parse(stdin []byte) (h wire.HookPost, cwd string, err error) {
 	return h, in.Cwd, nil
 }
 
+// bash holds the Bash fields of a PostToolUse input. A PostToolUse for Bash
+// means exit 0; there is no exit-code field.
+type bash struct {
+	ToolInput struct {
+		Command string `json:"command"`
+	} `json:"tool_input"`
+	ToolResponse struct {
+		Stdout      string `json:"stdout"`
+		Interrupted bool   `json:"interrupted"`
+	} `json:"tool_response"`
+}
+
+// bashFields decodes the Bash command, stdout and exit code from stdin. ok is
+// false when they are missing or malformed.
+func bashFields(stdin []byte) (command, stdout string, exitCode int, ok bool) {
+	var b bash
+	if err := json.Unmarshal(stdin, &b); err != nil || b.ToolInput.Command == "" {
+		return "", "", 0, false
+	}
+	if b.ToolResponse.Interrupted {
+		exitCode = 1
+	}
+	return b.ToolInput.Command, b.ToolResponse.Stdout, exitCode, true
+}
+
 // Main runs `agentboard hook`. It always returns 0 and never writes stdout,
 // because Claude Code adds a hook's stdout to the model's context.
 func Main(ctx context.Context, stdin io.Reader, env client.Env, stderr io.Writer) int {
@@ -76,6 +103,16 @@ func Main(ctx context.Context, stdin io.Reader, env client.Env, stderr io.Writer
 	}
 	h.Ctx = client.Gather(ctx, cwd, env, h.Ctx.Session)
 	client.Report(stderr, client.Post(ctx, env.BaseURL(), "/api/hook", h, nil))
+	if h.Event != "PostToolUse" || h.Tool != "Bash" {
+		return 0
+	}
+	command, stdout, exitCode, ok := bashFields(raw)
+	if !ok {
+		return 0
+	}
+	for _, item := range ghparse.Parse(command, stdout, exitCode, h.Ctx) {
+		client.Report(stderr, client.Post(ctx, env.BaseURL(), "/api/items", item, nil))
+	}
 	return 0
 }
 

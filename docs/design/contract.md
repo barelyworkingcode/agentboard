@@ -183,7 +183,8 @@ Store behaviour:
 - **Item:** matched on `(repo, issue)`, or `null`.
 - **`Session.PR`:** `items.pr` where `items.repo = sessions.repo AND items.number = sessions.issue`.
 - **Item repo:** if `repo` has no `/` and `ctx.repo` is set, it becomes `owner(ctx.repo)/repo`. If `repo` has no `/` and `ctx.repo` is empty, nothing is stored and the endpoint answers 400 (§3.2).
-- **Item fields:** absent pointer fields are kept. `run` is sticky from `ctx.run`.
+- **Item fields:** absent pointer fields are kept, and an empty `title` never clears a stored one. `run` is sticky from `ctx.run`. Otherwise latest write wins.
+- **Item by PR (#11):** `number == 0` with `pr > 0` updates, in the same transaction, the row in the resolved repo whose `pr` equals it (the most recently updated if several). With none, it inserts `(repo, pr)`. The returned key is that row's.
 - **`StartRun`:** upserts by name. An ended run is reopened (`ended_at=0`) and keeps `started_at`. It sets `coordinator_*` from the ctx and sets `sessions.run = name` for `ctx.session`.
 - **`EndRun` name resolution:** the `name` argument, else `ctx.run`, else the most recent open run with `coordinator_session = ctx.session`.
 - **`SetMeter` run:** `p.Run`, else `ctx.run`, else `ErrNoRun`. Absent pointer fields are kept.
@@ -423,7 +424,7 @@ All bodies are JSON and every error is `{"error":"…"}`.
 | `/api/decisions/{id}/dismiss` | `CtxPost` | 200 `DecisionResp{status:"dismissed"}` | 404 · 409 |
 | `/api/state` | `StatePost` | 200 `OKResp` | 400 empty `ctx.session` |
 | `/api/log` | `LogPost` | 200 `IDResp` | 400 empty text |
-| `/api/items` | `ItemPost` | 200 `ItemResp` | 400: bad repo, number < 1, pr < 1; a repo without `/` when the sanitised `ctx.repo` is empty gives `repo needs owner/name (no git repo here to infer the owner)` |
+| `/api/items` | `ItemPost` | 200 `ItemResp` | 400: bad repo, number < 0, number 0 without pr ≥ 1, pr < 1; number 0 with pr resolves through the stored PR (§2); a repo without `/` when the sanitised `ctx.repo` is empty gives `repo needs owner/name (no git repo here to infer the owner)` |
 | `/api/notes` | `NotePost` | 200 `IDResp` | 400 |
 | `/api/runs/start` | `RunPost` | 200 `Run` | 400 bad name |
 | `/api/runs/end` | `RunPost` (name may be "") | 200 `Run` | 404 |
@@ -528,7 +529,7 @@ func IssueFromBranch(branch string) int  // 0 if none
 - `dir` is the hook's `cwd`, or `os.Getwd()` for the CLI.
 - The three git calls run concurrently with `GIT_TERMINAL_PROMPT=0` and a 150 ms sub-deadline.
 - **Cache.** project, branch, repo and issue are cached per working directory under `AB_CACHE_DIR`, default `<os.UserCacheDir()>/agentboard/ctx`. An entry is valid while the HEAD git reads for that directory (the per-worktree HEAD in a worktree) and the common git `config` keep their mtime and size. Otherwise git runs and the entry is rewritten atomically (file 0600, directory 0700). It is written only when git finished inside the deadline. It holds the slug, never the remote URL. Any cache error falls back to git. Caching is skipped when `GIT_DIR` or `GIT_WORK_TREE` is set.
-- `cwd`, paths, `tool_input`, `tool_response`, `message`, `prompt` and `transcript_path` are never sent.
+- `cwd`, paths, `tool_input`, `tool_response`, `message`, `prompt` and `transcript_path` are never sent. The hook reads the Bash command and stdout only to derive item posts in-process (§6).
 
 `ParseRemote` regex (the host match is case-insensitive):
 ```
@@ -586,7 +587,9 @@ The command is `agentboard <subcommand>`. `AB_URL` defaults to `http://127.0.0.1
 ### 6. Hooks (T4)
 
 **`agentboard hook` behaviour:**
-- It reads all of stdin within the deadline and decodes only these fields: `session_id`, `cwd`, `hook_event_name`, `tool_name`, `tool_use_id`, `notification_type`, `source`, `reason`.
+- It reads all of stdin within the deadline and decodes only these fields: `session_id`, `cwd`, `hook_event_name`, `tool_name`, `tool_use_id`, `notification_type`, `source`, `reason`. On `PostToolUse` with `tool_name == "Bash"` it also decodes `tool_input.command`, `tool_response.stdout` and `tool_response.interrupted`; a missing or malformed value there skips the parse and never affects the `/api/hook` post.
+- **gh commands (#11).** After the `/api/hook` post, for `PostToolUse`/`Bash` it runs `ghparse.Parse(command, stdout, exitCode, ctx)` in-process (rules in issue #11's contract) and posts each result to `/api/items`, sequentially, under the same 250 ms deadline, fail-soft (stderr line only). Only the parsed repo, number, title, pr and state are posted; the command and stdout never leave the process.
+- Confirmed against Claude Code v2.1.284 payloads: stdout is `tool_response.stdout` and there is no exit-code field. `PostToolUse` for Bash means exit 0, so `exitCode` is 0, or 1 when `tool_response.interrupted` is true. A non-zero exit fires `PostToolUseFailure` with no `tool_response`; it is not parsed.
 - It posts only for these 8 events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Notification`, `Stop`, `SessionEnd`.
 - It posts nothing when the event is another type or `session_id` is empty.
 - It **always exits 0 and never writes stdout**, because Claude Code adds plain stdout from SessionStart and UserPromptSubmit to the model's context. Exit-0 stderr goes to Claude Code's debug log only.
