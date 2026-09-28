@@ -31,6 +31,7 @@ type Env struct {
 	SessionID string // CLAUDE_CODE_SESSION_ID
 	TMUX      string // TMUX
 	TMUXPane  string // TMUX_PANE
+	CacheDir  string // AB_CACHE_DIR; "" means <user cache dir>/agentboard/ctx
 }
 
 // EnvFromOS reads Env from the process environment.
@@ -43,6 +44,7 @@ func EnvFromOS() Env {
 		SessionID: os.Getenv("CLAUDE_CODE_SESSION_ID"),
 		TMUX:      os.Getenv("TMUX"),
 		TMUXPane:  os.Getenv("TMUX_PANE"),
+		CacheDir:  os.Getenv("AB_CACHE_DIR"),
 	}
 }
 
@@ -72,24 +74,20 @@ func Gather(ctx context.Context, dir string, env Env, session string) wire.Ctx {
 	defer cancel()
 
 	var (
-		wg                      sync.WaitGroup
-		project, branch, remote string
-		tmuxName                string
+		wg       sync.WaitGroup
+		tmuxName string
 	)
-	wg.Add(3)
-	go func() { defer wg.Done(); project = projectName(sub, dir) }()
-	go func() { defer wg.Done(); branch = runGit(sub, dir, "symbolic-ref", "--short", "-q", "HEAD") }()
-	go func() { defer wg.Done(); remote = runGit(sub, dir, "remote", "get-url", "origin") }()
 	if c.Name == "" && env.TMUX != "" {
 		wg.Add(1)
 		go func() { defer wg.Done(); tmuxName = tmuxSession(sub, env.TMUXPane) }()
 	}
+	labels := cachedGitLabels(sub, dir, env)
 	wg.Wait()
 
-	c.Project = project
-	c.Branch = branch
-	c.Repo = ParseRemote(remote)
-	c.Issue = IssueFromBranch(branch)
+	c.Project = labels.Project
+	c.Branch = labels.Branch
+	c.Repo = labels.Repo
+	c.Issue = labels.Issue
 	if c.Name == "" {
 		c.Name = tmuxName
 	}
@@ -97,6 +95,35 @@ func Gather(ctx context.Context, dir string, env Env, session string) wire.Ctx {
 		c.Name = firstN(session, 8)
 	}
 	return c
+}
+
+// cachedGitLabels serves the labels from the per-directory cache while its
+// stamp holds, else runs git and refreshes the cache.
+func cachedGitLabels(ctx context.Context, dir string, env Env) gitLabels {
+	cache := openGitCache(dir, env)
+	if l, ok := cache.load(); ok {
+		return l
+	}
+	l := gitLabelsFromGit(ctx, dir)
+	// A lookup cut short by the deadline would pin blank labels until HEAD
+	// next changes.
+	if ctx.Err() == nil {
+		cache.store(l)
+	}
+	return l
+}
+
+func gitLabelsFromGit(ctx context.Context, dir string) gitLabels {
+	var (
+		wg                      sync.WaitGroup
+		project, branch, remote string
+	)
+	wg.Add(3)
+	go func() { defer wg.Done(); project = projectName(ctx, dir) }()
+	go func() { defer wg.Done(); branch = runGit(ctx, dir, "symbolic-ref", "--short", "-q", "HEAD") }()
+	go func() { defer wg.Done(); remote = runGit(ctx, dir, "remote", "get-url", "origin") }()
+	wg.Wait()
+	return gitLabels{Project: project, Branch: branch, Repo: ParseRemote(remote), Issue: IssueFromBranch(branch)}
 }
 
 func machineName(env Env) string {
