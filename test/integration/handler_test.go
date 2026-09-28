@@ -225,3 +225,44 @@ func TestBrowserActions(t *testing.T) {
 		t.Errorf("sessions after delete = %+v", b.Sessions)
 	}
 }
+
+func TestItemRepoNeedsOwner(t *testing.T) {
+	const refusal = "repo needs owner/name (no git repo here to infer the owner)"
+	cases := []struct {
+		name, repo, ctxRepo string
+		wantCode            int
+		wantKey             string
+	}{
+		{"bare name, no ctx.repo", "eve", "", 400, ""},
+		{"bare name, ctx.repo set", "eve", "acme/relay", 200, "acme/eve#5"},
+		{"qualified name, no ctx.repo", "acme/eve", "", 200, "acme/eve#5"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := startHandler(t, true, loopbackAllow)
+			pr := 6
+			code, body := post(t, s.url+"/api/items", wire.ItemPost{Ctx: wire.Ctx{Repo: c.ctxRepo}, Repo: c.repo, Number: 5, PR: &pr})
+			if code != c.wantCode {
+				t.Fatalf("POST /api/items = %d %s, want %d", code, body, c.wantCode)
+			}
+			b, _ := board(t, s.url)
+			if c.wantCode == 400 {
+				var e wire.ErrorResp
+				if err := json.Unmarshal(body, &e); err != nil || e.Error != refusal {
+					t.Errorf("error body = %s, want {\"error\":%q}", body, refusal)
+				}
+				if len(b.Items) != 0 {
+					t.Errorf("refused item was stored: %+v", b.Items)
+				}
+				return
+			}
+			var got wire.ItemResp
+			if err := json.Unmarshal(body, &got); err != nil || got.Key != c.wantKey {
+				t.Errorf("response = %s, want key %q", body, c.wantKey)
+			}
+			if len(b.Items) != 1 || b.Items[0].Repo != "acme/eve" || b.Items[0].Number != 5 || b.Items[0].PR != 6 {
+				t.Errorf("board items = %+v, want one acme/eve#5 with pr 6", b.Items)
+			}
+		})
+	}
+}

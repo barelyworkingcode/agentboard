@@ -182,7 +182,7 @@ Store behaviour:
 - **Session detail:** decisions for the session, 50 max. Events and log, 200 each, newest first.
 - **Item:** matched on `(repo, issue)`, or `null`.
 - **`Session.PR`:** `items.pr` where `items.repo = sessions.repo AND items.number = sessions.issue`.
-- **Item repo:** if `repo` has no `/` and `ctx.repo` is set, it becomes `owner(ctx.repo)/repo`.
+- **Item repo:** if `repo` has no `/` and `ctx.repo` is set, it becomes `owner(ctx.repo)/repo`. If `repo` has no `/` and `ctx.repo` is empty, nothing is stored and the endpoint answers 400 (§3.2).
 - **Item fields:** absent pointer fields are kept. `run` is sticky from `ctx.run`.
 - **`StartRun`:** upserts by name. An ended run is reopened (`ended_at=0`) and keeps `started_at`. It sets `coordinator_*` from the ctx and sets `sessions.run = name` for `ctx.session`.
 - **`EndRun` name resolution:** the `name` argument, else `ctx.run`, else the most recent open run with `coordinator_session = ctx.session`.
@@ -423,7 +423,7 @@ All bodies are JSON and every error is `{"error":"…"}`.
 | `/api/decisions/{id}/dismiss` | `CtxPost` | 200 `DecisionResp{status:"dismissed"}` | 404 · 409 |
 | `/api/state` | `StatePost` | 200 `OKResp` | 400 empty `ctx.session` |
 | `/api/log` | `LogPost` | 200 `IDResp` | 400 empty text |
-| `/api/items` | `ItemPost` | 200 `ItemResp` | 400: bad repo, number < 1, pr < 1 |
+| `/api/items` | `ItemPost` | 200 `ItemResp` | 400: bad repo, number < 1, pr < 1; a repo without `/` when the sanitised `ctx.repo` is empty gives `repo needs owner/name (no git repo here to infer the owner)` |
 | `/api/notes` | `NotePost` | 200 `IDResp` | 400 |
 | `/api/runs/start` | `RunPost` | 200 `Run` | 400 bad name |
 | `/api/runs/end` | `RunPost` (name may be "") | 200 `Run` | 404 |
@@ -693,7 +693,7 @@ The target is `docs/design/mockup.html` on the `design` branch.
 **Links:**
 - Issue: `https://github.com/<repo>/issues/<issue>`, shown as `<name>#<issue>`.
 - PR: `…/pull/<pr>`.
-- No link when `repo` is empty.
+- No link when `repo` has no `/` (empty or a bare name).
 
 **Meter.**
 - Boxes 1 and 2 come from `Meter`: `open_start → open_now`, then `filed / closed`.

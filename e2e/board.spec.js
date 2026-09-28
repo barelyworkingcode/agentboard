@@ -81,3 +81,22 @@ test('quiet and in-tool sessions render from the board payload', async ({ page }
   await expect(inTool).toContainText(/running Bash since \d{1,2}:\d{2}/);
   await expect(inTool).not.toContainText('quiet');
 });
+
+test('a ledger item whose repo has no owner renders without issue or PR links', async ({ page }) => {
+  const now = Date.now();
+  const ctx = { machine: 'devbox', project: '', branch: '', repo: '', issue: 0, session: '', name: '', run: '' };
+  const item = (repo, number, pr) => ({ repo, number, title: `${repo} item`, pr, state: 'waiting', tier: '', run: '', updated_at: now, ctx });
+  const board = {
+    version: 'fixture.1', now, sessions: [], decisions: [], runs: [], meters: [],
+    items: [item('eve', 5, 6), item('acme/eve', 7, 8)], notes: [], log: [],
+  };
+  await page.route('**/api/board', (route) => route.fulfill({ json: board }));
+  await page.goto('/');
+
+  const qualified = page.locator(sel('item-row', { key: 'acme/eve#7' }));
+  await expect(qualified.locator('a[href="https://github.com/acme/eve/issues/7"]')).toBeVisible();
+  await expect(qualified.locator('a[href="https://github.com/acme/eve/pull/8"]')).toBeVisible();
+  const bare = page.locator(sel('item-row', { key: 'eve#5' }));
+  await expect(bare).toContainText('eve item');
+  await expect(bare.locator('a')).toHaveCount(0);
+});

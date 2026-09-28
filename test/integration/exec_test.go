@@ -162,3 +162,37 @@ func TestFailSoft(t *testing.T) {
 		}
 	}
 }
+
+func TestCLIItemBareRepo(t *testing.T) {
+	cases := []struct {
+		name     string
+		dir      string
+		code     int
+		stdout   string
+		stderr   string
+		wantRepo string
+	}{
+		{"outside a git repo", t.TempDir(), 1, "", "repo needs owner/name", ""},
+		{"inside a repo with origin acme/relay", gitRepo(t), 0, "acme/eve#5\n", "", "acme/eve"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			base, _ := startServe(t)
+			env := childEnv("AB_URL="+base, "AB_MACHINE=devbox")
+			r := runBin(t, c.dir, "", env, "item", "eve#5", "--pr", "6")
+			if r.code != c.code || r.stdout != c.stdout || !strings.Contains(r.stderr, c.stderr) {
+				t.Errorf("exit=%d stdout=%q stderr=%q, want exit=%d stdout=%q stderr containing %q", r.code, r.stdout, r.stderr, c.code, c.stdout, c.stderr)
+			}
+			b, _ := board(t, base)
+			if c.wantRepo == "" {
+				if len(b.Items) != 0 {
+					t.Errorf("refused item was stored: %+v", b.Items)
+				}
+				return
+			}
+			if len(b.Items) != 1 || b.Items[0].Repo != c.wantRepo || b.Items[0].Number != 5 || b.Items[0].PR != 6 {
+				t.Errorf("board items = %+v, want one %s#5 with pr 6", b.Items, c.wantRepo)
+			}
+		})
+	}
+}

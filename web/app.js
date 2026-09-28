@@ -126,6 +126,7 @@ function navLink(next, attrs, ...kids) {
 // ---------- filtering ----------
 
 const repoName = (repo) => (repo || '').split('/').pop();
+const hasOwner = (repo) => (repo || '').includes('/');
 
 function matches(machine, run, project) {
   if (state.machine && machine !== state.machine) return false;
@@ -201,14 +202,14 @@ const sessionName = (s) => s.ctx.name || s.id.slice(0, 8);
 
 function issueLink(repo, issue) {
   if (!issue) return null;
-  if (!repo) return `#${issue}`;
+  if (!hasOwner(repo)) return repo ? `${repo}#${issue}` : `#${issue}`;
   return h('a', { href: `https://github.com/${repo}/issues/${issue}`, target: '_blank', rel: 'noopener' },
     `${repoName(repo)}#${issue}`);
 }
 
 function prLink(repo, pr, label) {
   if (!pr) return null;
-  if (!repo) return label;
+  if (!hasOwner(repo)) return label;
   return h('a', { href: `https://github.com/${repo}/pull/${pr}`, target: '_blank', rel: 'noopener' }, label);
 }
 
