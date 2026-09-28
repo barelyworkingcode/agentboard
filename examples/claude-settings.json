@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "SessionStart":       [{"hooks": [{"type": "command", "command": "agentboard hook", "timeout": 2}]}],
+    "UserPromptSubmit":   [{"hooks": [{"type": "command", "command": "agentboard hook", "async": true}]}],
+    "PreToolUse":         [{"hooks": [{"type": "command", "command": "agentboard hook", "timeout": 2}]}],
+    "PostToolUse":        [{"hooks": [{"type": "command", "command": "agentboard hook", "async": true}]}],
+    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "agentboard hook", "async": true}]}],
+    "Notification":       [{"hooks": [{"type": "command", "command": "agentboard hook", "timeout": 2}]}],
+    "Stop":               [{"hooks": [{"type": "command", "command": "agentboard hook", "timeout": 2}]}],
+    "SessionEnd":         [{"hooks": [{"type": "command", "command": "agentboard hook", "timeout": 2}]}]
+  }
+}
