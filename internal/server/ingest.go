@@ -252,6 +252,10 @@ func (h *Handler) item(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.Ctx = cleanCtx(p.Ctx)
+	if !strings.Contains(p.Repo, "/") && p.Ctx.Repo == "" {
+		writeErr(w, http.StatusBadRequest, "repo needs owner/name (no git repo here to infer the owner)")
+		return
+	}
 	p.Title = truncPtr(p.Title, limitTitle)
 	p.State = truncPtr(p.State, limitShort)
 	p.Tier = truncPtr(p.Tier, limitShort)
