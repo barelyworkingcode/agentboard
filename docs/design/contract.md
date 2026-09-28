@@ -506,7 +506,7 @@ A failure returns 403 `{"error":"cross-origin request refused"}`. OPTIONS reques
 ### 4. Client context envelope (T3)
 
 ```go
-type Env struct{ URL, Machine, Name, Run, SessionID, TMUX, TMUXPane string } // AB_URL, AB_MACHINE, AB_NAME, AB_RUN, CLAUDE_CODE_SESSION_ID, TMUX, TMUX_PANE
+type Env struct{ URL, Machine, Name, Run, SessionID, TMUX, TMUXPane, CacheDir string } // AB_URL, AB_MACHINE, AB_NAME, AB_RUN, CLAUDE_CODE_SESSION_ID, TMUX, TMUX_PANE, AB_CACHE_DIR
 func EnvFromOS() Env
 func Gather(ctx context.Context, dir string, env Env, session string) wire.Ctx // session "" → env.SessionID
 func ParseRemote(url string) string      // "owner/name" or ""
@@ -527,6 +527,7 @@ func IssueFromBranch(branch string) int  // 0 if none
 
 - `dir` is the hook's `cwd`, or `os.Getwd()` for the CLI.
 - The three git calls run concurrently with `GIT_TERMINAL_PROMPT=0` and a 150 ms sub-deadline.
+- **Cache.** project, branch, repo and issue are cached per working directory under `AB_CACHE_DIR`, default `<os.UserCacheDir()>/agentboard/ctx`. An entry is valid while the HEAD git reads for that directory (the per-worktree HEAD in a worktree) and the common git `config` keep their mtime and size. Otherwise git runs and the entry is rewritten atomically (file 0600, directory 0700). It is written only when git finished inside the deadline. It holds the slug, never the remote URL. Any cache error falls back to git. Caching is skipped when `GIT_DIR` or `GIT_WORK_TREE` is set.
 - `cwd`, paths, `tool_input`, `tool_response`, `message`, `prompt` and `transcript_path` are never sent.
 
 `ParseRemote` regex (the host match is case-insensitive):
@@ -764,7 +765,7 @@ The issue's criteria say `ab`. Under decision 15 they are met by `agentboard`.
 - `agentboard log` every 10 s
 
 It asserts per-call p95 < 50 ms and reports the max. After 30 s of idle it asserts:
-- RSS (`ps -o rss=`) < 25 MiB
+- memory < 25 MiB: physical footprint (`vmmap --summary`) on darwin, RSS (`ps -o rss=`) elsewhere
 - CPU time over the next 60 s < 0.6 s, which is 1%
 
 It runs with `go test -tags budget ./test/integration -run TestBudget -v`.
