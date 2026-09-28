@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -88,10 +89,10 @@ func TestBudget(t *testing.T) {
 
 	time.Sleep(30 * time.Second)
 	pid := serve.Process.Pid
-	rssKiB := psInt(t, pid, "rss=")
-	t.Logf("idle RSS: %.1f MiB", float64(rssKiB)/1024)
-	if rssKiB*1024 >= 25*mib {
-		t.Errorf("idle RSS = %d KiB, want < 25 MiB", rssKiB)
+	memKiB, measure := idleMemory(t, pid)
+	t.Logf("idle %s: %.1f MiB", measure, float64(memKiB)/1024)
+	if memKiB*1024 >= 25*mib {
+		t.Errorf("idle %s = %d KiB, want < 25 MiB", measure, memKiB)
 	}
 	cpu0 := cpuTime(t, pid)
 	time.Sleep(60 * time.Second)
@@ -100,6 +101,40 @@ func TestBudget(t *testing.T) {
 	if cpu >= 600*time.Millisecond {
 		t.Errorf("idle CPU over 60 s = %v, want < 0.6 s", cpu)
 	}
+}
+
+// idleMemory is physical footprint on macOS, where ps RSS also counts pages
+// the OS hasn't reclaimed yet, and RSS elsewhere.
+func idleMemory(t *testing.T, pid int) (kib int64, measure string) {
+	if runtime.GOOS != "darwin" {
+		return psInt(t, pid, "rss="), "RSS"
+	}
+	out, err := exec.Command("vmmap", "--summary", strconv.Itoa(pid)).Output()
+	if err != nil {
+		t.Fatalf("vmmap --summary: %v", err)
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		v, ok := strings.CutPrefix(line, "Physical footprint:")
+		if !ok {
+			continue
+		}
+		return parseVmmapSize(t, strings.TrimSpace(v)), "physical footprint"
+	}
+	t.Fatalf("vmmap --summary has no Physical footprint line:\n%s", out)
+	return 0, ""
+}
+
+// parseVmmapSize reads sizes like "2768K", "16.1M" or "1.2G" as KiB.
+func parseVmmapSize(t *testing.T, s string) int64 {
+	scale := map[byte]float64{'B': 1.0 / 1024, 'K': 1, 'M': 1024, 'G': 1024 * 1024}
+	if s == "" || scale[s[len(s)-1]] == 0 {
+		t.Fatalf("vmmap size %q has no known unit", s)
+	}
+	v, err := strconv.ParseFloat(s[:len(s)-1], 64)
+	if err != nil {
+		t.Fatalf("vmmap size %q: %v", s, err)
+	}
+	return int64(v * scale[s[len(s)-1]])
 }
 
 func psInt(t *testing.T, pid int, field string) int64 {
