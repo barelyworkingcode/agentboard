@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>agentboard</title>
+<link rel="stylesheet" href="app.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<main id="app"><p class="meta">Loading…</p></main>
+
+<dialog data-testid="clear-dialog" class="modal">
+  <h2>Clear finished sessions</h2>
+  <label><input type="radio" name="clear-mode" value="ended_older" checked> Ended sessions older than <b>24 h</b> <span data-testid="clear-count" data-mode="ended_older"></span></label>
+  <label><input type="radio" name="clear-mode" value="ended_all"> All ended sessions <span data-testid="clear-count" data-mode="ended_all"></span></label>
+  <label><input type="radio" name="clear-mode" value="quiet"> Sessions quiet for more than <b>2 h</b> <span data-testid="clear-count" data-mode="quiet"></span></label>
+  <p class="meta">Open decisions are never cleared. Their sessions stay until each decision is answered or dismissed.</p>
+  <p class="err" data-role="error"></p>
+  <p class="actions"><button type="button" data-testid="clear-cancel">Cancel</button><button type="button" class="danger" data-testid="clear-confirm">Clear sessions</button></p>
+</dialog>
+
+<dialog data-testid="delete-dialog" class="modal">
+  <h2>Delete this session?</h2>
+  <p>Its state history and closed decisions go. Log lines, notes and ledger items stay.</p>
+  <p class="err" data-role="error"></p>
+  <p class="actions"><button type="button" data-testid="delete-cancel">Cancel</button><button type="button" class="danger" data-testid="delete-confirm">Delete this session</button></p>
+</dialog>
+</body>
+</html>
