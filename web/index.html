@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>agentboard</title>
+<script>
+(function () {
+  var t = '';
+  try { t = localStorage.getItem('agentboard-theme') || ''; } catch (e) {}
+  if (t !== 'light' && t !== 'dark') return;
+  document.documentElement.setAttribute('data-theme', t);
+  document.querySelector('meta[name="color-scheme"]').setAttribute('content', t);
+})();
+</script>
 <link rel="stylesheet" href="app.css">
 <script type="module" src="app.js"></script>
 </head>

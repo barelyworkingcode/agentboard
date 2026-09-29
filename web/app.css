@@ -1,21 +1,20 @@
 :root {
-  --fg: #1d1d1f; --muted: #6e6e73; --line: #e5e5ea; --bg: #fff; --card: #f7f7f9;
-  --you: #b3261e; --ok: #1b7f3b; --warn: #9a6700; --run: #0b57d0; --chip: #eef2fb;
+  /* light-dark() keeps every palette value declared once. Auto (no data-theme) follows the OS live. */
+  --fg: light-dark(#1d1d1f, #f2f2f7); --muted: light-dark(#6e6e73, #a1a1a6); --line: light-dark(#e5e5ea, #38383a);
+  --bg: light-dark(#fff, #1c1c1e); --card: light-dark(#f7f7f9, #2c2c2e);
+  --you: light-dark(#b3261e, #ff6b60); --ok: light-dark(#1b7f3b, #4cd964); --warn: light-dark(#9a6700, #ffcc00);
+  --run: light-dark(#0b57d0, #64a8ff); --chip: light-dark(#eef2fb, #26324a);
   color-scheme: light dark;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fg: #f2f2f7; --muted: #a1a1a6; --line: #38383a; --bg: #1c1c1e; --card: #2c2c2e;
-    --you: #ff6b60; --ok: #4cd964; --warn: #ffcc00; --run: #64a8ff; --chip: #26324a;
-  }
-}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 * { box-sizing: border-box; }
 html { background: var(--bg); }
 body {
   font: 15px/1.5 -apple-system, system-ui, sans-serif; color: var(--fg); background: var(--bg);
   max-width: 1000px; margin: 1.5rem auto; padding: 0 16px; overflow-wrap: anywhere;
 }
-header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 h1 { font-size: 1.4rem; margin: 0; }
 h2 {
   font-size: 1.05rem; margin-top: 1.8rem; border-bottom: 1px solid var(--line); padding-bottom: .3rem;
@@ -30,12 +29,12 @@ h2 small { font-weight: 400; color: var(--muted); font-size: .85rem; }
 
 .chips { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .8rem; }
 .chip {
-  font: inherit; font-size: .82rem; padding: .15rem .6rem; border-radius: 999px; background: var(--chip);
+  font: inherit; font-size: .82rem; padding: .15rem .8rem; min-height: 44px; min-width: 44px; border-radius: 999px; background: var(--chip);
   border: 1px solid var(--line); color: var(--fg); cursor: pointer;
 }
 .chip[aria-pressed="true"] { background: var(--run); color: #fff; border-color: var(--run); }
 .chip.run-name { font-weight: 600; }
-.chip-sep { font-size: .82rem; padding: .15rem .6rem; border-radius: 999px; background: var(--chip); border: 1px solid var(--line); }
+.chip-sep { font-size: .82rem; align-self: center; padding: .15rem .6rem; border-radius: 999px; background: var(--chip); border: 1px solid var(--line); }
 
 .you { border-left: 4px solid var(--you); background: var(--card); padding: .5rem 1rem; border-radius: 6px; margin: .6rem 0; }
 .you .who { font-size: .8rem; color: var(--muted); }
@@ -45,7 +44,7 @@ h2 small { font-weight: 400; color: var(--muted); font-size: .85rem; }
 .empty { color: var(--muted); font-size: .9rem; margin: .5rem 0; }
 
 table { border-collapse: collapse; width: 100%; font-size: .92rem; }
-th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
 th { color: var(--muted); font-weight: 600; font-size: .82rem; }
 tr.group td { background: var(--card); font-weight: 600; font-size: .85rem; }
 .done { color: var(--ok); } .wait { color: var(--you); } .run { color: var(--run); } .warn { color: var(--warn); } .idle { color: var(--muted); }
@@ -55,6 +54,16 @@ tr.group td { background: var(--card); font-weight: 600; font-size: .85rem; }
 code { font-size: .85em; }
 .branch { font-family: ui-monospace, monospace; font-size: .8rem; color: var(--muted); }
 a { color: var(--run); text-decoration: none; }
+/* 44px hit area for links in the page body */
+main a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; }
+:is(button, a, input):focus-visible { outline: 3px solid var(--run); outline-offset: 2px; }
+
+.theme-switch { display: inline-flex; }
+.theme-switch button { border-radius: 0; margin-left: -1px; min-width: 44px; }
+.theme-switch button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
+.theme-switch button:last-child { border-radius: 0 6px 6px 0; }
+.theme-switch button[aria-pressed="true"] { background: var(--run); color: #fff; border-color: var(--run); position: relative; }
+.head-side { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
 
 .meter { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin-top: .6rem; }
 .meter div { background: var(--card); border-radius: 6px; padding: .4rem .7rem; }
@@ -67,13 +76,13 @@ ul.log .t { color: var(--muted); font-variant-numeric: tabular-nums; margin-righ
 ul.log .src { color: var(--muted); font-size: .8rem; }
 
 button {
-  font: inherit; font-size: .85rem; padding: .25rem .7rem; border-radius: 6px; border: 1px solid var(--line);
+  font: inherit; font-size: .85rem; padding: .25rem .9rem; min-height: 44px; border-radius: 6px; border: 1px solid var(--line);
   background: var(--card); color: var(--fg); cursor: pointer;
 }
 button.danger { color: var(--you); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
 
-.kv { display: grid; grid-template-columns: auto 1fr auto 1fr; margin-top: .8rem; font-size: .92rem; }
+.kv { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); margin-top: .8rem; font-size: .92rem; }
 .kv > * { padding: .35rem .5rem; border-bottom: 1px solid var(--line); margin: 0; }
 .kv dt { color: var(--muted); font-weight: 600; font-size: .82rem; }
 
@@ -83,10 +92,27 @@ dialog.modal {
 }
 dialog.modal::backdrop { background: rgba(0, 0, 0, .25); }
 dialog.modal h2 { margin-top: 0; }
-dialog.modal label { display: block; margin: .3rem 0; }
+dialog.modal label { display: block; margin: 0; padding: .6rem 0; min-height: 44px; }
+dialog.modal input[type="radio"] { width: 1.15rem; height: 1.15rem; margin: 0 .5rem 0 0; vertical-align: middle; }
 .actions { display: flex; gap: .5rem; justify-content: flex-end; }
 
+/* Tablet and desktop: explicit column widths. Short columns hold their content on one line; long ones wrap. */
+@media (min-width: 641px) {
+  table.sessions { table-layout: fixed; }
+  table.sessions col.c-session { width: 16%; }
+  table.sessions col.c-where { width: 11%; }
+  table.sessions col.c-project { width: 27%; }
+  table.sessions col.c-now { width: auto; }
+  table.sessions col.c-last { width: 7rem; }
+  table.sessions td:nth-child(5), table.sessions th:nth-child(5) { white-space: nowrap; text-align: right; }
+  table.ledger col.c-issue, table.ledger col.c-pr, table.history col.c-time, table.history col.c-state { width: 1%; }
+  table.ledger col.c-state { width: 14ch; }
+  table.ledger td:nth-child(1), table.ledger td:nth-child(3), table.ledger th:nth-child(1), table.ledger th:nth-child(3),
+  table.history td:nth-child(-n+2), table.history th:nth-child(-n+2) { white-space: nowrap; }
+}
+
 @media (max-width: 640px) {
+  table.cards colgroup { display: none; }
   body { margin-top: 1rem; }
   table.cards, table.cards tbody, table.cards tr, table.cards td { display: block; width: 100%; }
   table.cards thead { display: none; }
