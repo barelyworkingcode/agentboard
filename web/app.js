@@ -404,6 +404,40 @@ deleteDialog.querySelector('[data-testid=delete-confirm]').addEventListener('cli
   }
 });
 
+// ---------- theme ----------
+
+const THEME_KEY = 'agentboard-theme';
+let memoryTheme = ''; // keeps the choice for the session when storage throws
+
+function currentTheme() {
+  let t = memoryTheme;
+  try { t = localStorage.getItem(THEME_KEY) || t; } catch { /* private mode */ }
+  return t === 'light' || t === 'dark' ? t : 'auto';
+}
+
+function setTheme(t) {
+  memoryTheme = t === 'auto' ? '' : t;
+  try {
+    if (t === 'auto') localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, t);
+  } catch { /* private mode */ }
+  const root = document.documentElement;
+  if (t === 'auto') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', t);
+  const meta = document.querySelector('meta[name="color-scheme"]');
+  if (meta) meta.setAttribute('content', t === 'auto' ? 'light dark' : t);
+  render();
+}
+
+function themeSwitch() {
+  const cur = currentTheme();
+  const btn = (t, label) => h('button', {
+    type: 'button', 'data-testid': `theme-${t}`, 'aria-pressed': String(cur === t), onclick: () => setTheme(t),
+  }, label);
+  return h('div', { class: 'theme-switch', role: 'group', 'aria-label': 'Theme', 'data-testid': 'theme-switch' },
+    btn('light', 'Light'), btn('dark', 'Dark'), btn('auto', 'Auto'));
+}
+
 // ---------- rendering ----------
 
 function render() {
@@ -430,11 +464,11 @@ function renderMain() {
   const machines = new Set(sessions.map((s) => s.ctx.machine).filter(Boolean));
   const header = h('header', null,
     h('h1', null, 'agentboard'),
-    h('div', { class: 'meta' }, dotJoin([
+    h('div', { class: 'head-side' }, h('div', { class: 'meta' }, dotJoin([
       liveBadge(),
       updatedAt && `updated ${hhmmss(updatedAt)}`,
       `${sessions.length} session${sessions.length === 1 ? '' : 's'} on ${machines.size} machine${machines.size === 1 ? '' : 's'}`,
-    ]), flash && h('span', { class: 'err' }, ' ', flash)));
+    ]), flash && h('span', { class: 'err' }, ' ', flash)), themeSwitch()));
   return [
     header,
     renderChips(),
@@ -602,7 +636,8 @@ function renderSessions(sessions, now) {
   }
   const head = h('thead', null, h('tr', null,
     ['Session', 'Where', 'Project · branch · issue', 'Now', 'Last post'].map((t) => h('th', null, t))));
-  return [heading, h('table', { class: 'cards' }, head, h('tbody', null, rows))];
+  const cols = h('colgroup', null, ['session', 'where', 'project', 'now', 'last'].map((c) => h('col', { class: `c-${c}` })));
+  return [heading, h('table', { class: 'cards sessions' }, cols, head, h('tbody', null, rows))];
 }
 
 function runLabel() {
@@ -619,7 +654,7 @@ function renderLedger() {
     h('td', null, i.title || '—'),
     h('td', null, prLink(i.repo, i.pr, `#${i.pr}`) || '—'),
     h('td', { class: ledgerTone(i.state) }, dotJoin([i.state, i.tier]).join('') || '—')));
-  return section('Ledger', runLabel(), h('table', { class: 'cards' }, head, h('tbody', null, rows)));
+  return section('Ledger', runLabel(), h('table', { class: 'cards ledger' }, h('colgroup', null, ['issue', 'what', 'pr', 'state'].map((c) => h('col', { class: `c-${c}` }))), head, h('tbody', null, rows)));
 }
 
 function renderNotes() {
@@ -652,9 +687,9 @@ function renderLog(lines, withSource) {
 
 function renderSession() {
   const back = navLink({ ...state, session: '' }, null, '← all sessions');
-  if (!detail) return [h('header', null, h('h1', null, 'Loading…'), h('div', { class: 'meta' }, back))];
+  if (!detail) return [h('header', null, h('h1', null, 'Loading…'), h('div', { class: 'head-side' }, h('div', { class: 'meta' }, back), themeSwitch()))];
   if (detail.missing) {
-    return [h('header', null, h('h1', null, 'Session not found'), h('div', { class: 'meta' }, back)),
+    return [h('header', null, h('h1', null, 'Session not found'), h('div', { class: 'head-side' }, h('div', { class: 'meta' }, back), themeSwitch())),
       empty('It may have been cleared or deleted.')];
   }
   const now = nowMs();
@@ -665,7 +700,8 @@ function renderSession() {
   const until = s.ended_at || now;
   const kv = (label, value) => [h('dt', null, label), h('dd', null, value || '—')];
   const open = detail.decisions.filter((d) => d.status === 'open');
-  const events = h('table', null,
+  const events = h('table', { class: 'history' },
+    h('colgroup', null, ['time', 'state', 'note'].map((c) => h('col', { class: `c-${c}` }))),
     h('thead', null, h('tr', null, ['Time', 'State', 'Note'].map((x) => h('th', null, x)))),
     h('tbody', null, detail.events.map((e) => h('tr', null,
       h('td', null, hhmm(e.at)),
@@ -675,7 +711,7 @@ function renderSession() {
     h('section', { 'data-testid': 'session-view', 'data-session': s.id },
       h('header', null,
         h('h1', null, h('span', { class: `dot ${t}` }), sessionName(s)),
-        h('div', { class: 'meta' }, dotJoin([liveBadge(), back]))),
+        h('div', { class: 'head-side' }, h('div', { class: 'meta' }, dotJoin([liveBadge(), back])), themeSwitch())),
       h('dl', { class: 'kv' },
         kv('Machine', c.machine), kv('Run', c.run || 'ad hoc'),
         kv('Project', c.project), kv('Branch', c.branch && h('span', { class: 'branch' }, c.branch)),

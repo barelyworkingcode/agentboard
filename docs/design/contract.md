@@ -664,7 +664,7 @@ The target is `docs/design/mockup.html` on the `design` branch.
 
 - **Assets:** plain ES module, no framework. Only relative URLs (`api/board`, `events`).
 - **Text:** posted text only ever goes into `textContent`, never `innerHTML`.
-- **Theme and width:** `prefers-color-scheme` sets the theme. At 390 px wide there is no horizontal scroll.
+- **Theme and width:** a Light / Dark / Auto switch in the header sets the theme, stored in `localStorage` key `agentboard-theme`; missing or invalid means Auto, which follows `prefers-color-scheme` live. At 390 px wide there is no horizontal scroll.
 - **Updates:**
   - `EventSource('events')`. On a new version, refetch the board, and the session detail when in that view, sending `If-None-Match`.
   - While the EventSource is not OPEN, poll every 2 s.
