@@ -48,14 +48,14 @@ relay service register --name agentboard --command agentboard \
 `--args` is repeatable, one argument each. Use the `--args=--flag=value` form
 for arguments that start with a dash.
 
-## Report from a VM (devbox)
+## Report from another machine
 
-Inside the VM, point the client at the host's bridge address and name the
-machine:
+On a VM or another host, point the client at the address the board listens on
+(`--listen`) and name the machine:
 
 ```sh
-export AB_URL=http://192.168.64.1:8790
-export AB_MACHINE=devbox
+export AB_URL=http://192.0.2.10:8790
+export AB_MACHINE=testbox
 ```
 
 `AB_NAME` and `AB_RUN` optionally label the session and the run it belongs to.
@@ -89,7 +89,7 @@ the model's context or block a session. It sends only derived labels
 ```sh
 curl -sS -X POST http://127.0.0.1:8790/api/log \
   -H 'Content-Type: application/json' \
-  -d '{"ctx":{"machine":"devbox","project":"acme"},"text":"nightly started"}'
+  -d '{"ctx":{"machine":"testbox","project":"acme"},"text":"nightly started"}'
 ```
 
 ## CLI
