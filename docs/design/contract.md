@@ -1,3 +1,5 @@
+> History: this describes the retired devbox verify setup.
+
 ## Contract (agentboard#1)
 
 ### 0. Module, toolchain, layout
